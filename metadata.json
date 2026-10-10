@@ -1,0 +1,7 @@
+{
+  "name": "Legal Nyay AI - Judicial Intelligence System",
+  "description": "Secure Judicial Cloud intelligence platform for case dossier ingestion, evidentiary contradiction analysis, and verifiable legal reasoning.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
