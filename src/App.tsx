@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { LoginPortal } from './components/LoginPortal';
@@ -9,11 +9,63 @@ import { ModuleTab, CaseRecord, AuditLog, CustomDossier, DocumentPageData } from
 import { INITIAL_CASES, INITIAL_AUDIT_LOGS } from './data/cases';
 
 export default function App() {
-  const [currentTab, setCurrentTab] = useState<ModuleTab>('dashboard');
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [currentTab, setCurrentTab] = useState<ModuleTab>('login');
+  const [tabHistory, setTabHistory] = useState<ModuleTab[]>(['login']);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [cases, setCases] = useState<CaseRecord[]>(INITIAL_CASES);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(INITIAL_AUDIT_LOGS);
   const [customDossier, setCustomDossier] = useState<CustomDossier | null>(null);
+
+  const navigateToTab = (newTab: ModuleTab, pushHistory = true) => {
+    if (!isAuthenticated && newTab !== 'login') {
+      return;
+    }
+    if (pushHistory && newTab !== currentTab) {
+      setTabHistory((prev) => [...prev, newTab]);
+      try {
+        window.history.pushState({ tab: newTab }, '', `#${newTab}`);
+      } catch {
+        // safe fallback
+      }
+    }
+    setCurrentTab(newTab);
+  };
+
+  const handleGoBack = () => {
+    if (tabHistory.length > 1) {
+      const nextHistory = [...tabHistory];
+      nextHistory.pop(); // remove current
+      const prevTab = nextHistory[nextHistory.length - 1];
+      setTabHistory(nextHistory);
+      setCurrentTab(prevTab);
+      try {
+        window.history.replaceState({ tab: prevTab }, '', `#${prevTab}`);
+      } catch {
+        // safe fallback
+      }
+    } else if (isAuthenticated && currentTab !== 'dashboard') {
+      navigateToTab('dashboard', true);
+    }
+  };
+
+  const canGoBack = isAuthenticated && (tabHistory.length > 1 || currentTab !== 'dashboard');
+
+  // Synchronize browser history and popstate
+  useEffect(() => {
+    const handlePopState = (e: PopStateEvent) => {
+      if (e.state && e.state.tab) {
+        const targetTab: ModuleTab = e.state.tab;
+        if (isAuthenticated || targetTab === 'login') {
+          setCurrentTab(targetTab);
+        }
+      } else if (tabHistory.length > 1) {
+        handleGoBack();
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [tabHistory, isAuthenticated]);
 
   const handleAddAuditLog = (
     operation: string,
@@ -43,7 +95,7 @@ export default function App() {
     if (caseId === 'CASE-942') {
       setCustomDossier(null);
     }
-    setCurrentTab('workspace');
+    navigateToTab('workspace', true);
   };
 
   const handleNewFileUpload = async (file: File) => {
@@ -113,28 +165,46 @@ export default function App() {
         'Ingestion'
       );
 
-      setCurrentTab('workspace');
+      navigateToTab('workspace', true);
     } catch (err) {
       console.error('File parsing error in App:', err);
     }
   };
 
+  const handleSelectTab = (tab: ModuleTab) => {
+    navigateToTab(tab, true);
+  };
+
   const handleLoginSuccess = () => {
+    setIsAuthenticated(true);
+    setTabHistory(['dashboard']);
+    setCurrentTab('dashboard');
+    try {
+      window.history.replaceState({ tab: 'dashboard' }, '', '#dashboard');
+    } catch {
+      // safe fallback
+    }
     handleAddAuditLog(
       'Senior_Clerk_04 authenticated',
       'Single Sign-On asserted via Cloud Armor TLS 1.3',
       'IAM'
     );
-    setCurrentTab('dashboard');
   };
 
   const handleLogout = () => {
+    setIsAuthenticated(false);
+    setTabHistory(['login']);
+    setCurrentTab('login');
+    try {
+      window.history.replaceState({ tab: 'login' }, '', '#login');
+    } catch {
+      // safe fallback
+    }
     handleAddAuditLog(
       'Session terminated',
       'CMEK ephemeral keys wiped from memory',
       'IAM'
     );
-    setCurrentTab('login');
   };
 
   return (
@@ -142,47 +212,55 @@ export default function App() {
       {/* Persistent / Responsive Left Navigation Sidebar */}
       <Sidebar
         currentTab={currentTab}
-        onSelectTab={(tab) => setCurrentTab(tab)}
+        onSelectTab={handleSelectTab}
         mobileOpen={mobileSidebarOpen}
         onToggleMobile={() => setMobileSidebarOpen(false)}
         onLogout={handleLogout}
+        isAuthenticated={isAuthenticated}
       />
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden bg-slate-50">
-        {/* Top Header */}
+        {/* Top Header with Back Navigation */}
         <Header
           currentTab={currentTab}
           onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
+          isAuthenticated={isAuthenticated}
+          canGoBack={canGoBack}
+          onGoBack={handleGoBack}
         />
 
         {/* Dynamic Operational Module Content */}
         <main className="flex-1 overflow-y-auto min-w-0">
-          {currentTab === 'login' && (
+          {!isAuthenticated || currentTab === 'login' ? (
             <LoginPortal onLoginSuccess={handleLoginSuccess} />
-          )}
+          ) : (
+            <>
+              {currentTab === 'dashboard' && (
+                <ExecutiveDashboard
+                  cases={cases}
+                  onSelectCase={handleSelectCase}
+                  onNewFileUpload={handleNewFileUpload}
+                />
+              )}
 
-          {currentTab === 'dashboard' && (
-            <ExecutiveDashboard
-              cases={cases}
-              onSelectCase={handleSelectCase}
-              onNewFileUpload={handleNewFileUpload}
-            />
-          )}
+              {currentTab === 'workspace' && (
+                <NyayAIWorkspace
+                  customDossier={customDossier}
+                  onSetCustomDossier={setCustomDossier}
+                  onAddAuditLog={handleAddAuditLog}
+                  onBackToDashboard={() => navigateToTab('dashboard', true)}
+                />
+              )}
 
-          {currentTab === 'workspace' && (
-            <NyayAIWorkspace
-              customDossier={customDossier}
-              onSetCustomDossier={setCustomDossier}
-              onAddAuditLog={handleAddAuditLog}
-            />
-          )}
-
-          {currentTab === 'compliance' && (
-            <ComplianceLogs
-              logs={auditLogs}
-              onAddLog={handleAddAuditLog}
-            />
+              {currentTab === 'compliance' && (
+                <ComplianceLogs
+                  logs={auditLogs}
+                  onAddLog={handleAddAuditLog}
+                  onBackToDashboard={() => navigateToTab('dashboard', true)}
+                />
+              )}
+            </>
           )}
         </main>
       </div>

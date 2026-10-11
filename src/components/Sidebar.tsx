@@ -17,6 +17,7 @@ interface SidebarProps {
   mobileOpen: boolean;
   onToggleMobile: () => void;
   onLogout: () => void;
+  isAuthenticated: boolean;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -25,6 +26,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   mobileOpen,
   onToggleMobile,
   onLogout,
+  isAuthenticated,
 }) => {
   const navItems = [
     {
@@ -87,31 +89,47 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Module Navigation List */}
       <div className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        <div className="px-3 pb-2 text-[11px] font-bold tracking-widest text-slate-400 uppercase">
-          Operational Modules
+        <div className="px-3 pb-2 text-[11px] font-bold tracking-widest text-slate-400 uppercase flex items-center justify-between">
+          <span>Operational Modules</span>
+          {!isAuthenticated && (
+            <span className="text-[9px] text-amber-400 font-normal normal-case flex items-center gap-1">
+              <Lock className="w-2.5 h-2.5" />
+              Locked
+            </span>
+          )}
         </div>
 
         {navItems.map((item) => {
           const isActive = currentTab === item.id;
           const IconComponent = item.icon;
+          const isDisabled = !isAuthenticated && item.id !== 'login';
 
           return (
             <button
               key={item.id}
+              disabled={isDisabled}
               onClick={() => {
+                if (isDisabled) return;
                 onSelectTab(item.id);
                 if (mobileOpen) onToggleMobile();
               }}
-              className={`w-full group relative flex items-center px-3.5 py-3 rounded-lg text-left transition-all duration-150 cursor-pointer ${
-                isActive
-                  ? 'bg-blue-600/15 text-white shadow-sm'
-                  : 'text-slate-400 hover:bg-slate-800/40 hover:text-slate-200'
+              className={`w-full group relative flex items-center px-3.5 py-3 rounded-lg text-left transition-all duration-150 ${
+                isDisabled
+                  ? 'opacity-35 cursor-not-allowed select-none text-slate-500 hover:bg-transparent'
+                  : isActive
+                  ? 'bg-blue-600/15 text-white shadow-sm cursor-pointer'
+                  : 'text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 cursor-pointer'
               }`}
+              title={isDisabled ? 'Authenticate via Login Portal to access' : item.label}
             >
               {/* Number prefix */}
               <span
                 className={`text-[11px] font-mono mr-2.5 transition-colors ${
-                  isActive ? 'text-blue-400 font-bold' : 'text-slate-400'
+                  isDisabled
+                    ? 'text-slate-600'
+                    : isActive
+                    ? 'text-blue-400 font-bold'
+                    : 'text-slate-400'
                 }`}
               >
                 {item.number}
@@ -120,7 +138,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {/* Icon */}
               <div
                 className={`mr-3 p-1 rounded-md transition-colors ${
-                  isActive ? 'text-blue-400' : 'text-slate-400 group-hover:text-slate-300'
+                  isDisabled
+                    ? 'text-slate-600'
+                    : isActive
+                    ? 'text-blue-400'
+                    : 'text-slate-400 group-hover:text-slate-300'
                 }`}
               >
                 <IconComponent className="w-4 h-4" />
@@ -130,18 +152,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <div className="flex-1 min-w-0">
                 <div
                   className={`text-sm font-semibold tracking-tight truncate ${
-                    isActive ? 'text-white' : 'text-slate-300'
+                    isDisabled
+                      ? 'text-slate-500'
+                      : isActive
+                      ? 'text-white'
+                      : 'text-slate-300'
                   }`}
                 >
                   {item.label}
                 </div>
-                <div className="text-[11px] text-slate-400 truncate font-normal">
-                  {item.sublabel}
+                <div
+                  className={`text-[11px] truncate font-normal ${
+                    isDisabled ? 'text-slate-600' : 'text-slate-400'
+                  }`}
+                >
+                  {isDisabled ? 'Auth Required' : item.sublabel}
                 </div>
               </div>
 
+              {/* Locked badge if disabled */}
+              {isDisabled && (
+                <div className="ml-2 flex items-center">
+                  <Lock className="w-3.5 h-3.5 text-slate-600" />
+                </div>
+              )}
+
               {/* Active blue marker indicator */}
-              {isActive && (
+              {!isDisabled && isActive && (
                 <div className="absolute right-0 top-1.5 bottom-1.5 w-1 bg-blue-500 rounded-l-full shadow-lg shadow-blue-500/50" />
               )}
             </button>
@@ -154,51 +191,83 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Protected Session Card */}
         <div className="p-3 rounded-lg bg-slate-900/90 border border-slate-800/90">
           <div className="flex items-center space-x-2.5">
-            <div className="p-1 rounded bg-emerald-500/10 text-emerald-400">
-              <Shield className="w-3.5 h-3.5" />
+            <div
+              className={`p-1 rounded ${
+                isAuthenticated
+                  ? 'bg-emerald-500/10 text-emerald-400'
+                  : 'bg-amber-500/10 text-amber-400'
+              }`}
+            >
+              {isAuthenticated ? (
+                <Shield className="w-3.5 h-3.5" />
+              ) : (
+                <Lock className="w-3.5 h-3.5" />
+              )}
             </div>
             <div>
               <div className="text-xs font-semibold text-slate-200">
-                Protected session
+                {isAuthenticated ? 'Protected session' : 'Session locked'}
               </div>
               <div className="text-[10px] text-slate-400 font-mono">
-                VPC-SC · TLS 1.3 · CMEK
+                {isAuthenticated
+                  ? 'VPC-SC · TLS 1.3 · CMEK'
+                  : 'Awaiting Authentication'}
               </div>
             </div>
           </div>
 
           <div className="mt-2.5 flex items-center justify-between text-[10px] text-slate-400">
             <span>Security posture</span>
-            <span className="font-mono text-emerald-400 font-semibold">100%</span>
+            <span
+              className={`font-mono font-semibold ${
+                isAuthenticated ? 'text-emerald-400' : 'text-amber-400'
+              }`}
+            >
+              {isAuthenticated ? '100%' : 'Locked'}
+            </span>
           </div>
           <div className="mt-1 h-1 w-full bg-slate-800 rounded-full overflow-hidden">
-            <div className="h-full bg-emerald-400 w-full rounded-full" />
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${
+                isAuthenticated ? 'bg-emerald-400 w-full' : 'bg-amber-400 w-1/6'
+              }`}
+            />
           </div>
         </div>
 
         {/* User Badge */}
         <div className="flex items-center justify-between pt-1">
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 text-white font-bold text-xs flex items-center justify-center tracking-tight shadow-md">
-              SC
+            <div
+              className={`w-8 h-8 rounded-lg font-bold text-xs flex items-center justify-center tracking-tight shadow-md ${
+                isAuthenticated
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-slate-800 text-slate-500 border border-slate-700/80'
+              }`}
+            >
+              {isAuthenticated ? 'SC' : <Lock className="w-3.5 h-3.5" />}
             </div>
             <div>
               <div className="text-xs font-semibold text-slate-200">
-                Senior Clerk
+                {isAuthenticated ? 'Senior Clerk' : 'Unauthorized'}
               </div>
               <div className="text-[10px] text-slate-400">
-                Bench 04 · Verified
+                {isAuthenticated
+                  ? 'Bench 04 · Verified'
+                  : 'Sign in to access modules'}
               </div>
             </div>
           </div>
 
-          <button
-            onClick={onLogout}
-            title="Lock & Exit Portal"
-            className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800/60 rounded-md transition-colors"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
+          {isAuthenticated && (
+            <button
+              onClick={onLogout}
+              title="Lock & Exit Portal"
+              className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800/60 rounded-md transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         <div className="text-[9px] font-mono tracking-widest text-slate-400 uppercase text-center pt-1">

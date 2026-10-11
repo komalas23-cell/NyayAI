@@ -12,15 +12,17 @@ import {
   Terminal,
   ExternalLink,
   Check,
+  ArrowLeft,
 } from 'lucide-react';
 import { AuditLog } from '../types';
 
 interface ComplianceLogsProps {
   logs: AuditLog[];
   onAddLog: (operation: string, result: string, category: 'Inference' | 'IAM' | 'Ingestion' | 'System') => void;
+  onBackToDashboard?: () => void;
 }
 
-export const ComplianceLogs: React.FC<ComplianceLogsProps> = ({ logs }) => {
+export const ComplianceLogs: React.FC<ComplianceLogsProps> = ({ logs, onBackToDashboard }) => {
   const [filterCategory, setFilterCategory] = useState<string>('All');
   const [isLiveStreaming, setIsLiveStreaming] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
@@ -85,6 +87,15 @@ export const ComplianceLogs: React.FC<ComplianceLogsProps> = ({ logs }) => {
       {/* Title & Top Export Action */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
+          {onBackToDashboard && (
+            <button
+              onClick={onBackToDashboard}
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-xs font-semibold shadow-xs mb-3 transition-colors cursor-pointer group"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 text-blue-600 group-hover:-translate-x-0.5 transition-transform" />
+              <span>Back to Executive Dashboard</span>
+            </button>
+          )}
           <div className="text-[11px] font-bold tracking-widest text-blue-600 uppercase">
             Defensibility Dashboard
           </div>

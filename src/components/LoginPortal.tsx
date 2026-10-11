@@ -106,7 +106,7 @@ export const LoginPortal: React.FC<LoginPortalProps> = ({ onLoginSuccess }) => {
               </span>
             ) : (
               <>
-                <span>Authenticate & enter workspace</span>
+                <span>Authenticate</span>
                 <ChevronRight className="w-4 h-4" />
               </>
             )}
