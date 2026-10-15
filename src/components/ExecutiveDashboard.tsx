@@ -10,7 +10,7 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
-  FileCheck,
+  ArrowRight,
 } from 'lucide-react';
 import { CaseRecord } from '../types';
 
@@ -38,6 +38,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
     progress: 100,
     completed: true,
   });
+  const [uploadedFileObj, setUploadedFileObj] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadNotice, setUploadNotice] = useState<string | null>(null);
 
@@ -51,7 +52,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setIsUploading(true);
+      setUploadedFileObj(file);
       const sizeStr = file.size > 1024 * 1024
         ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
         : `${(file.size / 1024).toFixed(0)} KB`;
@@ -63,20 +64,20 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
         completed: true,
       });
 
-      setUploadNotice(`Uploading ${file.name} to VPC Service Controls perimeter...`);
-
-      setTimeout(() => {
-        setIsUploading(false);
-        setUploadNotice(`✓ ${file.name} ingested successfully. Redirecting to NyayAI Workspace...`);
-        if (onNewFileUpload) {
-          onNewFileUpload(file);
-        }
-      }, 700);
+      setUploadNotice(`✓ "${file.name}" selected. Click 'Proceed to Nyay AI Workspace' below to open.`);
     }
   };
 
   const handleTriggerUpload = () => {
     fileInputRef.current?.click();
+  };
+
+  const handleProceedToWorkspace = () => {
+    if (uploadedFileObj && onNewFileUpload) {
+      onNewFileUpload(uploadedFileObj);
+    } else {
+      onSelectCase(cases[0]?.id || 'CASE-942');
+    }
   };
 
 
@@ -169,24 +170,27 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
           </span>
         </div>
 
-        {/* Central Drag-and-Drop Area */}
-        <div
-          onClick={handleTriggerUpload}
-          className="cursor-pointer py-6 flex flex-col items-center justify-center text-center group"
-        >
-          <div className="w-16 h-16 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-105 group-hover:bg-blue-100 transition-all shadow-inner">
+        {/* Central Drag-and-Drop Area (non-clickable container) */}
+        <div className="py-6 flex flex-col items-center justify-center text-center">
+          {/* Strictly restrict file picker click event to the upload cloud icon */}
+          <button
+            type="button"
+            onClick={handleTriggerUpload}
+            className="w-16 h-16 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100 hover:scale-105 active:scale-95 flex items-center justify-center cursor-pointer transition-all shadow-inner border border-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            title="Click cloud icon to choose PDF / legal file"
+          >
             <UploadCloud className="w-8 h-8" />
-          </div>
+          </button>
 
-          <h3 className="text-lg font-bold text-slate-900 mt-4 group-hover:text-blue-600 transition-colors">
+          <h3 className="text-lg font-bold text-slate-900 mt-4">
             Upload Legal Dossier / Case PDF
           </h3>
           <p className="text-slate-500 text-xs sm:text-sm mt-1 max-w-md">
-            Drag and drop a case file here, or click to initialize secure ingestion.
+            Click the upload cloud icon above to select a case file for native Indic OCR.
           </p>
 
-          {/* Currently Ingested File Pill */}
-          <div className="mt-5 inline-flex items-center space-x-3 px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 shadow-sm text-left">
+          {/* Currently Ingested File Pill (Clicking does NOT trigger file picker) */}
+          <div className="mt-5 inline-flex items-center space-x-3 px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 shadow-sm text-left select-text">
             <FileText className="w-5 h-5 text-rose-500" />
             <div className="text-xs sm:text-sm font-semibold text-slate-800">
               {selectedFile.name}
@@ -204,8 +208,19 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
             </div>
           )}
 
-          {/* VPC Boundary Security note */}
-          <div className="mt-5 flex items-center space-x-1.5 text-xs text-slate-400">
+          {/* Prominent 'Proceed' Primary Button below uploaded file */}
+          <button
+            type="button"
+            onClick={handleProceedToWorkspace}
+            className="mt-4 px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-xs sm:text-sm shadow-md hover:shadow-lg transition-all flex items-center space-x-2 cursor-pointer group"
+            title="Proceed to Nyay AI Workspace"
+          >
+            <span>Proceed to Nyay AI Workspace</span>
+            <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+          </button>
+
+          {/* VPC Boundary Security note (Clicking does NOT trigger file picker) */}
+          <div className="mt-4 flex items-center space-x-1.5 text-xs text-slate-400 select-none">
             <Lock className="w-3.5 h-3.5" />
             <span>Files remain within the VPC Service Controls perimeter</span>
           </div>

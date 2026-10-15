@@ -45,7 +45,7 @@ export const Header: React.FC<HeaderProps> = ({
             <Menu className="w-5 h-5" />
           </button>
 
-          {canGoBack && onGoBack && (
+          {canGoBack && onGoBack && currentTab !== 'workspace' && (
             <button
               onClick={onGoBack}
               title="Go back to previous screen"

@@ -1,6 +1,6 @@
 export type ModuleTab = 'login' | 'dashboard' | 'workspace' | 'compliance';
 
-export type WorkspaceSubTab = 'summary' | 'testimonies' | 'forensics';
+export type WorkspaceSubTab = 'summary' | 'testimonies' | 'forensics' | 'contradictions';
 
 export interface CaseRecord {
   id: string;
@@ -34,6 +34,16 @@ export interface DocumentPageData {
   footerSign: string;
 }
 
+export interface NyayaDocumentAnalysis {
+  original_ocr_text: string;
+  converted_clean_text: string;
+  english_summary: string;
+  suggested_questions: string[];
+  document_summary_bullet_points?: string[];
+  key_details?: Record<string, string>;
+  initial_upload_formatted_response?: string;
+}
+
 export interface CustomDossier {
   id: string;
   fileName: string;
@@ -46,6 +56,28 @@ export interface CustomDossier {
   detectedLanguage?: string;
   ocrConfidence?: number;
   pages: Record<number, DocumentPageData>;
+  original_ocr_text?: string;
+  converted_clean_text?: string;
+  english_summary?: string;
+  suggested_questions?: string[];
+  document_summary_bullet_points?: string[];
+  key_details?: Record<string, string>;
+  initial_upload_formatted_response?: string;
+  witnessTestimonies?: Array<{
+    name: string;
+    role: string;
+    statement: string;
+    source: string;
+  }>;
+  forensicReports?: Array<{
+    item: string;
+    details: string;
+    status: string;
+  }>;
+  hasContradiction?: boolean;
+  contradictionAlert?: ContradictionAlert | null;
+  consistencyCards?: ConsistencyCard[];
+  analysis?: NyayaDocumentAnalysis;
 }
 
 export interface Citation {

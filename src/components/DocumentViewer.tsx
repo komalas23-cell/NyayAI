@@ -8,9 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Upload,
-  Languages,
   CheckCircle2,
-  RefreshCw,
   Sparkles,
   AlertTriangle,
   Scale,
@@ -29,8 +27,6 @@ interface DocumentViewerProps {
   } | null;
   onPageChange: (page: number) => void;
   onUploadFile: (file: File) => void;
-  onRunIndicOcr: () => void;
-  isOcrLoading?: boolean;
   contradictionActive?: boolean;
 }
 
@@ -40,9 +36,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   highlightedPara,
   onPageChange,
   onUploadFile,
-  onRunIndicOcr,
-  isOcrLoading = false,
-  contradictionActive = true,
+  contradictionActive,
 }) => {
   const [zoomLevel, setZoomLevel] = useState(100);
   const [showContradictionHighlights, setShowContradictionHighlights] = useState(true);
@@ -58,6 +52,10 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   const availablePageNumbers = Object.keys(pagesSource)
     .map(Number)
     .sort((a, b) => a - b);
+
+  const currentActivePage = availablePageNumbers.includes(activePage)
+    ? activePage
+    : (availablePageNumbers[0] || 1);
 
   const totalPagesCount =
     customDossier?.pageCount ||
@@ -120,8 +118,89 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
     a.click();
   };
 
-  const isIndicDetected =
-    customDossier?.isIndicScript || customDossier?.ocrApplied;
+  const renderCleanTextWithTables = (text: string) => {
+    const lines = text.split('\n');
+    const elements: React.ReactNode[] = [];
+    let tableLines: string[] = [];
+    let keyIdx = 0;
+
+    const flushTable = () => {
+      if (tableLines.length > 0) {
+        const rows = tableLines
+          .filter((l) => !l.trim().match(/^\|?\s*[-:]+\s*\|[-:|\s]*$/))
+          .map((l) =>
+            l
+              .split('|')
+              .map((c) => c.trim())
+              .filter((c, idx, arr) => (idx > 0 && idx < arr.length - 1) || arr.length <= 2)
+          )
+          .filter((r) => r.length > 0);
+
+        if (rows.length > 0) {
+          const headerRow = rows[0];
+          const bodyRows = rows.slice(1);
+          elements.push(
+            <div key={`table-${keyIdx++}`} className="overflow-x-auto my-3 border border-slate-300 rounded-lg shadow-2xs">
+              <table className="min-w-full divide-y divide-slate-200 text-xs">
+                <thead className="bg-slate-100 text-slate-800 font-bold uppercase tracking-wider text-[10px]">
+                  <tr>
+                    {headerRow.map((cell, ci) => (
+                      <th key={ci} className="px-3 py-2 text-left border-r last:border-r-0 border-slate-200 bg-slate-100">
+                        {cell}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-slate-100 text-slate-900 font-medium">
+                  {bodyRows.map((row, ri) => (
+                    <tr key={ri} className={ri % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'}>
+                      {row.map((cell, ci) => (
+                        <td key={ci} className="px-3 py-2 border-r last:border-r-0 border-slate-200">
+                          {cell}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        }
+        tableLines = [];
+      }
+    };
+
+    let pBuffer: string[] = [];
+    const flushParagraph = () => {
+      if (pBuffer.length > 0) {
+        const content = pBuffer.join('\n').trim();
+        if (content) {
+          elements.push(
+            <div key={`p-${keyIdx++}`} className="my-2 leading-relaxed whitespace-pre-wrap">
+              {content}
+            </div>
+          );
+        }
+        pBuffer = [];
+      }
+    };
+
+    for (const line of lines) {
+      if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
+        flushParagraph();
+        tableLines.push(line.trim());
+      } else {
+        flushTable();
+        pBuffer.push(line);
+      }
+    }
+    flushParagraph();
+    flushTable();
+
+    return elements;
+  };
+
+  const isIndicDetected = false;
 
   return (
     <div className="flex flex-col h-full bg-slate-200/70 border-r border-slate-300/80 overflow-hidden">
@@ -172,55 +251,35 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
             <span className="whitespace-nowrap">Upload</span>
           </button>
 
-          {/* Indic Multi-script OCR Button */}
-          <button
-            type="button"
-            onClick={onRunIndicOcr}
-            disabled={isOcrLoading}
-            className={`relative inline-flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer shrink-0 ${
-              isIndicDetected
-                ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-600 shadow-xs'
-                : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-300'
-            }`}
-            title="Perform Indic Multi-script OCR parsing & certified judicial transliteration"
-          >
-            {isOcrLoading ? (
-              <RefreshCw className="w-3.5 h-3.5 animate-spin shrink-0" />
-            ) : (
-              <Languages className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-            )}
-            <span className="whitespace-nowrap">Indic OCR</span>
-          </button>
-
           {/* Page Jumper */}
           <div className="relative inline-flex items-center space-x-1 text-xs text-slate-600 bg-slate-100 rounded-lg p-1 border border-slate-200 shrink-0">
             <button
               type="button"
               onClick={() => {
-                const currentIndex = availablePageNumbers.indexOf(activePage);
+                const currentIndex = availablePageNumbers.indexOf(currentActivePage);
                 if (currentIndex > 0) {
                   onPageChange(availablePageNumbers[currentIndex - 1]);
                 }
               }}
-              disabled={availablePageNumbers.indexOf(activePage) <= 0}
+              disabled={availablePageNumbers.indexOf(currentActivePage) <= 0}
               className="p-1 rounded hover:bg-white disabled:opacity-30 cursor-pointer transition-colors shrink-0"
               title="Previous page"
             >
               <ChevronLeft className="w-3.5 h-3.5" />
             </button>
             <span className="font-mono px-1 font-semibold text-[11px] whitespace-nowrap select-none">
-              Pg {activePage}/{totalPagesCount}
+              Pg {currentActivePage}/{totalPagesCount}
             </span>
             <button
               type="button"
               onClick={() => {
-                const currentIndex = availablePageNumbers.indexOf(activePage);
+                const currentIndex = availablePageNumbers.indexOf(currentActivePage);
                 if (currentIndex < availablePageNumbers.length - 1) {
                   onPageChange(availablePageNumbers[currentIndex + 1]);
                 }
               }}
               disabled={
-                availablePageNumbers.indexOf(activePage) >=
+                availablePageNumbers.indexOf(currentActivePage) >=
                 availablePageNumbers.length - 1
               }
               className="p-1 rounded hover:bg-white disabled:opacity-30 cursor-pointer transition-colors shrink-0"
@@ -275,27 +334,51 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
             </span>
           </div>
 
-          {/* Prosecution Legend Pill (Blue) */}
-          <button
-            type="button"
-            onClick={() => onPageChange(45)}
-            className="relative inline-flex items-center space-x-1.5 px-2 py-0.5 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-900 border border-blue-300 font-semibold cursor-pointer transition-colors shrink-0"
-            title="Jump to Prosecution statement on Page 45"
-          >
-            <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0" />
-            <span className="whitespace-nowrap">Prosecution (11:15 PM)</span>
-          </button>
+          {/* Contradiction Mapping or Clean Verification Pill */}
+          {customDossier ? (
+            customDossier.hasContradiction ? (
+              <div className="flex items-center space-x-1.5 shrink-0">
+                <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 font-semibold text-[10px] flex items-center space-x-1">
+                  <span className="w-2 h-2 rounded-full bg-amber-600 animate-pulse" />
+                  <span>Contradiction Flagged in Current Document</span>
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-1.5 shrink-0">
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 font-semibold text-[10px] flex items-center space-x-1">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                  <span>No contradictions found in this document</span>
+                </span>
+              </div>
+            )
+          ) : (
+            <>
+              {/* Prosecution Legend Pill (Blue) */}
+              <button
+                type="button"
+                onClick={() => onPageChange(45)}
+                className="relative inline-flex items-center space-x-1.5 px-2 py-0.5 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-900 border border-blue-300 font-semibold cursor-pointer transition-colors shrink-0"
+                title="Jump to Prosecution statement on Page 45"
+              >
+                <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0" />
+                <span className="whitespace-nowrap">Prosecution (11:15 PM)</span>
+              </button>
 
-          {/* Defense Legend Pill (Amber) */}
-          <button
-            type="button"
-            onClick={() => onPageChange(52)}
-            className="relative inline-flex items-center space-x-1.5 px-2 py-0.5 rounded-full bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-semibold cursor-pointer transition-colors shrink-0"
-            title="Jump to Defense statement on Page 52"
-          >
-            <span className="w-2 h-2 rounded-full bg-amber-600 shrink-0" />
-            <span className="whitespace-nowrap">Defense (10:45 PM)</span>
-          </button>
+              {/* Defense Legend Pill (Amber) */}
+              <button
+                type="button"
+                onClick={() => onPageChange(52)}
+                className="relative inline-flex items-center space-x-1.5 px-2 py-0.5 rounded-full bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-semibold cursor-pointer transition-colors shrink-0"
+                title="Jump to Defense statement on Page 52"
+              >
+                <span className="w-2 h-2 rounded-full bg-amber-600 shrink-0" />
+                <span className="whitespace-nowrap">Defense (10:45 PM)</span>
+              </button>
+            </>
+          )}
+
+          {/* Mode Switcher */}
+          {/* Removed Indic OCR mode switcher */}
         </div>
 
         {/* Toggle markers */}
@@ -342,157 +425,125 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
               }}
               className="w-full max-w-2xl mx-auto bg-white shadow-lg shadow-slate-300/60 border border-slate-300/80 rounded-xs p-6 sm:p-12 relative font-serif text-slate-900 transition-all duration-150"
             >
-              {/* Page Number Stamp */}
-              <div className="text-right text-[11px] font-mono font-medium text-slate-500 mb-6 uppercase tracking-wider">
-                Page {pageData.pageNumber} of {pageData.totalPages}
+            {/* Page Number Stamp */}
+            <div className="text-right text-[11px] font-mono font-medium text-slate-500 mb-6 uppercase tracking-wider">
+              Page {pageData.pageNumber} of {pageData.totalPages}
+            </div>
+
+            {/* Court Header */}
+            <div className="text-center space-y-1 mb-6">
+              <div className="text-sm sm:text-base font-bold tracking-widest uppercase leading-snug whitespace-pre-line text-slate-950 font-serif">
+                {pageData.courtHeader}
               </div>
-
-              {/* Court Header */}
-              <div className="text-center space-y-1 mb-6">
-                <div className="text-sm sm:text-base font-bold tracking-widest uppercase leading-snug whitespace-pre-line text-slate-950 font-serif">
-                  {pageData.courtHeader}
-                </div>
-                <div className="w-3/4 mx-auto border-b border-slate-900 my-4" />
-                <div className="text-xs sm:text-sm font-bold tracking-wider uppercase text-slate-900">
-                  {pageData.subHeader}
-                </div>
-              </div>
-
-              {/* Case Details */}
-              <div className="mb-6 text-xs sm:text-sm space-y-0.5 text-slate-900">
-                <div className="font-bold">{pageData.caseRef}</div>
-                <div className="italic text-slate-800">{pageData.caseParties}</div>
-              </div>
-
-              {/* Paragraphs with distinct Prosecution vs. Defense visual highlights */}
-              <div className="space-y-4 text-xs sm:text-sm leading-relaxed text-slate-900">
-                {pageData.paragraphs.map((p) => {
-                  const isHighlighted =
-                    highlightedPara &&
-                    highlightedPara.page === pageData.pageNumber &&
-                    highlightedPara.para === p.num;
-
-                  const isProsecution =
-                    showContradictionHighlights && p.contradictionRole === 'prosecution';
-                  const isDefense =
-                    showContradictionHighlights && p.contradictionRole === 'defense';
-
-                  return (
-                    <div
-                      key={p.num}
-                      id={`doc-page-${pageData.pageNumber}-para-${p.num}`}
-                      className={`transition-all rounded-xs p-2.5 -mx-2 ${
-                        isProsecution
-                          ? 'bg-blue-50/95 border-l-4 border-l-blue-600 ring-2 ring-blue-500/70 shadow-xs'
-                          : isDefense
-                          ? 'bg-amber-50/95 border-l-4 border-l-amber-600 ring-2 ring-amber-500/70 shadow-xs'
-                          : isHighlighted
-                          ? 'bg-amber-100 ring-2 ring-amber-400 font-medium'
-                          : 'hover:bg-slate-50'
-                      }`}
-                    >
-                      {/* PROSECUTION CONTRADICTION HEADER BADGE (DISTINCT BLUE) */}
-                      {isProsecution && (
-                        <div className="flex flex-wrap items-center justify-between gap-1 text-[10px] font-bold uppercase tracking-wider text-blue-900 bg-blue-100/95 px-2.5 py-1 rounded-sm mb-2 font-sans border border-blue-200">
-                          <span className="flex items-center space-x-1.5">
-                            <span className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse" />
-                            <span>Prosecution Contradiction Marker • Source A (Witness Statement)</span>
-                          </span>
-                          <span className="font-mono bg-blue-600 text-white px-2 py-0.5 rounded text-[9px]">
-                            Asserted: 11:15 PM
-                          </span>
-                        </div>
-                      )}
-
-                      {/* DEFENSE CONTRADICTION HEADER BADGE (DISTINCT AMBER) */}
-                      {isDefense && (
-                        <div className="flex flex-wrap items-center justify-between gap-1 text-[10px] font-bold uppercase tracking-wider text-amber-950 bg-amber-100/95 px-2.5 py-1 rounded-sm mb-2 font-sans border border-amber-200">
-                          <span className="flex items-center space-x-1.5">
-                            <span className="w-2.5 h-2.5 rounded-full bg-amber-600 animate-pulse" />
-                            <span>Defense Contradiction Marker • Source B (Witness Deposition)</span>
-                          </span>
-                          <span className="font-mono bg-amber-600 text-white px-2 py-0.5 rounded text-[9px]">
-                            Asserted: 10:45 PM [Conflict]
-                          </span>
-                        </div>
-                      )}
-
-                      {/* Bilingual Translation view if available */}
-                      {p.originalScript ? (
-                        <div className="space-y-1.5">
-                          <div className="flex items-start space-x-2">
-                            <span
-                              className={`font-bold font-mono ${
-                                isProsecution
-                                  ? 'text-blue-700'
-                                  : isDefense
-                                  ? 'text-amber-700'
-                                  : 'text-slate-900'
-                              }`}
-                            >
-                              {p.num}.
-                            </span>
-                            <div className="flex-1">
-                              <div className="text-slate-800 font-normal pb-1 border-b border-slate-200/60 bg-amber-50/40 p-1.5 rounded text-[13px]">
-                                <span className="text-[10px] uppercase font-bold text-amber-800 block font-sans">
-                                  Original Script:
-                                </span>
-                                {p.originalScript}
-                              </div>
-                              <div className="text-slate-900 pt-1">
-                                <span className="text-[10px] uppercase font-bold text-blue-700 block font-sans">
-                                  Certified English Translation:
-                                </span>
-                                {p.englishTranslation || p.text}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex items-start">
-                          <span
-                            className={`font-bold mr-2 font-mono ${
-                              isProsecution
-                                ? 'text-blue-800'
-                                : isDefense
-                                ? 'text-amber-800'
-                                : 'text-slate-950'
-                            }`}
-                          >
-                            {p.num}.
-                          </span>
-                          <span
-                            className={
-                              isProsecution
-                                ? 'text-blue-950 font-medium'
-                                : isDefense
-                                ? 'text-amber-950 font-medium'
-                                : 'text-slate-900'
-                            }
-                          >
-                            {p.text}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Footer Sign */}
-              <div className="mt-10 pt-6 border-t border-slate-200 text-xs sm:text-sm text-slate-800 whitespace-pre-line font-serif italic text-left">
-                {pageData.footerSign}
-              </div>
-
-              {/* Document Security Hologram / Seal */}
-              <div className="absolute bottom-6 right-6 opacity-30 pointer-events-none text-right font-mono text-[9px] text-slate-400 uppercase tracking-widest border border-slate-400 p-1">
-                SEAL OF SESSIONS
-                <br />
-                DIGITAL SECURE CLOUD
+              <div className="w-3/4 mx-auto border-b border-slate-900 my-4" />
+              <div className="text-xs sm:text-sm font-bold tracking-wider uppercase text-slate-900">
+                {pageData.subHeader}
               </div>
             </div>
-          );
-        })}
+
+            {/* Case Details */}
+            <div className="mb-6 text-xs sm:text-sm space-y-0.5 text-slate-900">
+              <div className="font-bold">{pageData.caseRef}</div>
+              <div className="italic text-slate-800">{pageData.caseParties}</div>
+            </div>
+
+            {/* Paragraphs */}
+            <div className="space-y-4 text-xs sm:text-sm leading-relaxed text-slate-900">
+              {pageData.paragraphs.map((p) => {
+                const isHighlighted =
+                  highlightedPara &&
+                  highlightedPara.page === pageData.pageNumber &&
+                  highlightedPara.para === p.num;
+
+                const isProsecution =
+                  showContradictionHighlights && p.contradictionRole === 'prosecution';
+                const isDefense =
+                  showContradictionHighlights && p.contradictionRole === 'defense';
+
+                return (
+                  <div
+                    key={p.num}
+                    id={`doc-page-${pageData.pageNumber}-para-${p.num}`}
+                    className={`transition-all rounded-xs p-2.5 -mx-2 ${
+                      isProsecution
+                        ? 'bg-blue-50/95 border-l-4 border-l-blue-600 ring-2 ring-blue-500/70 shadow-xs'
+                        : isDefense
+                        ? 'bg-amber-50/95 border-l-4 border-l-amber-600 ring-2 ring-amber-500/70 shadow-xs'
+                        : isHighlighted
+                        ? 'bg-amber-100 ring-2 ring-amber-400 font-medium'
+                        : 'hover:bg-slate-50'
+                    }`}
+                  >
+                    {/* PROSECUTION CONTRADICTION HEADER BADGE */}
+                    {isProsecution && (
+                      <div className="flex flex-wrap items-center justify-between gap-1 text-[10px] font-bold uppercase tracking-wider text-blue-900 bg-blue-100/95 px-2.5 py-1 rounded-sm mb-2 font-sans border border-blue-200">
+                        <span className="flex items-center space-x-1.5">
+                          <span className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse" />
+                          <span>Prosecution Contradiction Marker • Source A (Witness Statement)</span>
+                        </span>
+                        <span className="font-mono bg-blue-600 text-white px-2 py-0.5 rounded text-[9px]">
+                          Asserted: 11:15 PM
+                        </span>
+                      </div>
+                    )}
+
+                    {/* DEFENSE CONTRADICTION HEADER BADGE */}
+                    {isDefense && (
+                      <div className="flex flex-wrap items-center justify-between gap-1 text-[10px] font-bold uppercase tracking-wider text-amber-950 bg-amber-100/95 px-2.5 py-1 rounded-sm mb-2 font-sans border border-amber-200">
+                        <span className="flex items-center space-x-1.5">
+                          <span className="w-2.5 h-2.5 rounded-full bg-amber-600 animate-pulse" />
+                          <span>Defense Contradiction Marker • Source B (Witness Deposition)</span>
+                        </span>
+                        <span className="font-mono bg-amber-600 text-white px-2 py-0.5 rounded text-[9px]">
+                          Asserted: 10:45 PM [Conflict]
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Paragraph text */}
+                    <div className="flex items-start">
+                      <span
+                        className={`font-bold mr-2 font-mono ${
+                          isProsecution
+                            ? 'text-blue-800'
+                            : isDefense
+                            ? 'text-amber-800'
+                            : 'text-slate-950'
+                        }`}
+                      >
+                        {p.num}.
+                      </span>
+                      <span
+                        className={
+                          isProsecution
+                            ? 'text-blue-950 font-medium'
+                            : isDefense
+                            ? 'text-amber-950 font-medium'
+                            : 'text-slate-900'
+                        }
+                      >
+                        {p.text}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Footer Sign */}
+            <div className="mt-10 pt-6 border-t border-slate-200 text-xs sm:text-sm text-slate-800 whitespace-pre-line font-serif italic text-left">
+              {pageData.footerSign}
+            </div>
+
+            {/* Document Security Hologram / Seal */}
+            <div className="absolute bottom-6 right-6 opacity-30 pointer-events-none text-right font-mono text-[9px] text-slate-400 uppercase tracking-widest border border-slate-400 p-1">
+              SEAL OF SESSIONS
+              <br />
+              DIGITAL SECURE CLOUD
+            </div>
+          </div>
+        );
+      })}
       </div>
     </div>
   );
